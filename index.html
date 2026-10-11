@@ -76,10 +76,6 @@
           <option value="6">~6</option>
         </select>
       </div>
-      <div class="pb-field pb-narrate">
-        <label for="narrate">Narration</label>
-        <button type="button" class="narrate-toggle" id="narrate" aria-pressed="false">🔈 Off</button>
-      </div>
       <button type="submit" class="go" id="go">Go</button>
     </div>
   </form>
@@ -129,6 +125,7 @@
         <div class="body">
           <div class="prog"><b id="prog-lead">Idle</b><small id="prog-sub">· press Go to begin</small></div>
           <div class="track"><i id="prog-bar" style="width:0%"></i></div>
+          <button type="button" class="download" id="read-story" disabled>🔊 Read story aloud</button>
           <button type="button" class="download" id="download" disabled>⤓ Download story (HTML)</button>
           <button type="button" class="download" id="download-gif" disabled>⤓ Download GIF</button>
           <button type="button" class="download" id="download-pdf" disabled>⤓ Download PDF</button>

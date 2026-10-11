@@ -19,8 +19,11 @@ const SURPRISE_IDEAS = [
   'A young otter finds a lost mitten and searches the whole river for its owner.',
   'A sleepy bear tries to stay awake to see the first snow.',
   'A paper boat sets sail to find where the stream ends.',
-  'A shy ghost just wants to make a new friend in the old attic.',
-  'A baker fox invents a cake that makes everyone in town smile.',
+  'A tiny mole who\'s afraid of the dark discovers she can glow.',
+  'A young owl is scared of heights but must learn to fly before winter.',
+  'A scarecrow secretly longs to dance with the cornstalks at night.',
+  'A hedgehog too prickly for hugs invents a soft blanket instead.',
+  'A whale sings the same song every night, hoping someone finally sings back.',
 ];
 
 function surpriseIdea() {
@@ -38,12 +41,17 @@ const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').mat
 // utterances spoken one at a time in panel order instead of overlapping/racing if two panels
 // settle close together.
 const SPEECH_SUPPORTED = 'speechSynthesis' in window;
-let narrationOn = false;
+let narrationOn = false;   // live narration off by default (no toggle in the UI); "Read story aloud" bypasses this
 const narrateQueue = [];
 let narrating = false;
+let narrateOnIdle = null;   // fires once when the queue fully drains (see readStoryAloud)
 
 function narratePump() {
-  if (narrating || !narrateQueue.length) return;
+  if (narrating) return;
+  if (!narrateQueue.length) {
+    if (narrateOnIdle) { const fn = narrateOnIdle; narrateOnIdle = null; fn(); }
+    return;
+  }
   narrating = true;
   const utter = new SpeechSynthesisUtterance(narrateQueue.shift());
   utter.rate = 0.92;   // a touch slower than default — easier to follow as a read-aloud story
@@ -60,18 +68,8 @@ function narrateEnqueue(text) {
 function narrateStop() {
   narrateQueue.length = 0;
   narrating = false;
+  narrateOnIdle = null;
   if (SPEECH_SUPPORTED) speechSynthesis.cancel();
-}
-
-function setNarration(on) {
-  narrationOn = on && SPEECH_SUPPORTED;
-  const btn = $('narrate');
-  if (btn) {
-    btn.classList.toggle('on', narrationOn);
-    btn.textContent = narrationOn ? '🔊 On' : '🔈 Off';
-    btn.setAttribute('aria-pressed', String(narrationOn));
-  }
-  if (!narrationOn) narrateStop();
 }
 
 /* ------------------------------- event source -------------------------------- */
@@ -514,6 +512,9 @@ function startRun() {
   $('crew-live').textContent = 'live';
 
   setInputsDisabled(true);
+  // stopRun() (above) already called narrateStop() — just reset this button's own label/state.
+  const readBtn = $('read-story');
+  readBtn.disabled = true; readBtn.textContent = '🔊 Read story aloud'; readBtn.classList.remove('reading');
   $('download').disabled = true;
   $('download-gif').disabled = true;
   $('download-pdf').disabled = true;
@@ -596,6 +597,7 @@ function finishRun() {
   go.textContent = 'Run again'; go.classList.remove('running'); go.classList.add('again'); go.disabled = false;
   setInputsDisabled(false);
   const hasStory = state.panels.filter((p) => p.caption).length > 0;
+  $('read-story').disabled = !hasStory || !SPEECH_SUPPORTED;
   $('download').disabled = !hasStory;
   $('download-gif').disabled = !hasStory;
   $('download-pdf').disabled = !hasStory;
@@ -681,17 +683,17 @@ function buildStoryHtml() {
        min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px}
   h1{position:fixed;top:18px;left:22px;margin:0;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#8c2f2a;
      font-family:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace}
-  
+
   /* Book spread stage */
   .stage{position:relative;width:min(900px,94vw);aspect-ratio:8/5}
-  
+
   /* Underlying paper base for left side of the open book */
   .book-base-left {
     position:absolute; top:0; left:0; width:50%; height:100%;
     background:#efe8da; border:1px solid #c3b490; border-radius:4px 0 0 4px;
     box-shadow:-10px 18px 40px rgba(60,45,20,.15);
   }
-  
+
   /* Central book spine visual guide */
   .stage::after {
     content:''; position:absolute; top:0; bottom:0; left:50%; width:2px;
@@ -700,7 +702,7 @@ function buildStoryHtml() {
   }
 
   .pages{position:absolute;inset:0;perspective:2200px}
-  
+
   /* Page takes up the right half and turns along its left edge (spine) */
   .page{position:absolute;top:0;right:0;width:50%;height:100%;
         transform-origin:left center;
@@ -708,7 +710,7 @@ function buildStoryHtml() {
         transition:transform .7s cubic-bezier(.4,.1,.2,1);
         border:1px solid #c3b490;border-radius:0 4px 4px 0;overflow:hidden;background:#f6f0e2;
         box-shadow:0 18px 50px rgba(60,45,20,.25)}
-        
+
   .page-inner{position:absolute;inset:0;display:flex;flex-direction:column}
   .page .art{flex:0 0 62%;position:relative;overflow:hidden;background:#f0e8d5}
   .page .art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
@@ -764,17 +766,17 @@ function buildStoryHtml() {
 
   function layout() {
     pages.forEach(function (el, i) {
-      if (i === current) { 
-        el.style.transform = 'rotateY(0deg)'; 
-        el.style.zIndex = total; 
+      if (i === current) {
+        el.style.transform = 'rotateY(0deg)';
+        el.style.zIndex = total;
       }
-      else if (i < current) { 
-        el.style.transform = 'rotateY(-180deg)'; 
-        el.style.zIndex = i; 
+      else if (i < current) {
+        el.style.transform = 'rotateY(-180deg)';
+        el.style.zIndex = i;
       }
-      else { 
-        el.style.transform = 'rotateY(0deg)'; 
-        el.style.zIndex = total - (i - current); 
+      else {
+        el.style.transform = 'rotateY(0deg)';
+        el.style.zIndex = total - (i - current);
       }
     });
     pageno.textContent = (current + 1) + ' / ' + total;
@@ -965,6 +967,29 @@ async function restyleStory() {
   }
 }
 
+/* ------------------------------- read story aloud ------------------------------ */
+// On-demand replay of a FINISHED story through the same narration engine as the live
+// narration (above), but deliberately bypasses the narrationOn gate — clicking this
+// button IS the explicit ask, regardless of whether SpeechSynthesis is otherwise
+// unavailable/unsupported. Click again while reading to stop early.
+function readStoryAloud() {
+  const btn = $('read-story');
+  if (!SPEECH_SUPPORTED || btn.disabled) return;
+  if (narrating || narrateQueue.length) {
+    narrateStop();
+    btn.textContent = '🔊 Read story aloud';
+    btn.classList.remove('reading');
+    return;
+  }
+  const panels = state.panels.filter((p) => p.caption).sort((a, b) => a.n - b.n);
+  if (!panels.length) return;
+  panels.forEach((p) => narrateQueue.push(p.caption));
+  btn.textContent = '⏹ Stop reading';
+  btn.classList.add('reading');
+  narrateOnIdle = () => { btn.textContent = '🔊 Read story aloud'; btn.classList.remove('reading'); };
+  narratePump();
+}
+
 /* --------------------------- regenerate one panel ----------------------------- */
 // Redo a single panel's picture — same caption, same image prompt, just a fresh /panel/
 // regenerate call with a new render — without touching any other panel or re-running the
@@ -1020,12 +1045,10 @@ $('gallery').addEventListener('click', (e) => {
 });
 
 if (!SPEECH_SUPPORTED) {
-  const btn = $('narrate');
-  btn.disabled = true; btn.textContent = '🔈 Unsupported';
-  btn.title = 'This browser does not support speech synthesis.';
+  $('read-story').disabled = true;
+  $('read-story').title = 'This browser does not support speech synthesis.';
 } else {
-  $('narrate').addEventListener('click', () => setNarration(!narrationOn));
-  setNarration(false);   // opt-in: default off so a run doesn't start talking unannounced
+  $('read-story').addEventListener('click', readStoryAloud);
 }
 
 const params = new URLSearchParams(location.search);
