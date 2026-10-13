@@ -138,6 +138,27 @@ IMAGE_BACKEND=a1111 IMAGE_URL=http://127.0.0.1:7860 \
   .venv/Scripts/python.exe server/bridge.py
 ```
 
+## Narration
+
+The **🔊 Read story aloud** button narrates the finished story through `server/narrate.py` —
+Microsoft Edge's neural TTS voices (the `edge-tts` package, the same consumer service behind
+Edge's own Read Aloud/Narrator feature), via a bridge route (`POST /narrate`, one line of
+caption in, MP3 bytes out). Included in `requirements.txt`. While reading, **⏸ Pause** /
+**▶ Resume** and **⏹ Stop reading** give full playback control — pausing holds the current
+line's audio in place (even if it's still being fetched) and resuming continues from exactly
+that point, not from the start of the line.
+
+| Env | Default | What it does |
+|-----|---------|---------------|
+| `TTS_VOICE` | `en-US-AnaNeural` | The Edge neural voice to speak in (any voice name `edge-tts --list-voices` lists). |
+| `TTS_RATE` | `-8%` | SSML prosody rate — a touch slower than normal speech, easier to follow as a read-aloud story. |
+| `TTS_TIMEOUT` | `20` | Seconds before a single line's synthesis call is given up on. |
+
+**No fallback voice engine, by design:** unlike `imagegen.py`'s stub-image fallback, a
+`/narrate` failure (Microsoft's service unreachable, blocked, or erroring) stops narration and
+shows the error rather than silently degrading. This means narration depends on the **bridge
+host** having outbound internet access to Microsoft's TTS endpoint.
+
 ## Child-safety moderation
 
 Every caption and image prompt is required to be child-appropriate (roughly ages 4-8) —
@@ -215,6 +236,12 @@ crew/image backend is simply asked to draw in that style, same as any other pres
 - **Non-determinism:** even guided, a rare run may emit a malformed line or skip the rejection.
   The bridge is tolerant (drops noise, always sends a terminal `run.done`) and the prompt insists
   on one real revision, but the money-moment isn't 100% guaranteed every run.
+- **Narration is a real Microsoft cloud call, not simulated:** `/narrate` (server/narrate.py)
+  calls Microsoft's Edge TTS service from the bridge host. There's no fallback voice — if that
+  call fails (network, outage, blocked egress), narration stops and shows the error rather than
+  quietly degrading. See the Narration section above. Microsoft was mid-migration to a new TTS
+  host as of 2026-10 ([edge-tts#490](https://github.com/rany2/edge-tts/issues/490)); `narrate.py`
+  tries the new host first and falls back to the legacy one, remembering whichever works.
 
 ## Accessibility
 Respects `prefers-reduced-motion`: shimmer, pulsing crew dots, the caption typewriter, and card
